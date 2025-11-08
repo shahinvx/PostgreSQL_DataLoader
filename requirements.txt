@@ -1,0 +1,13 @@
+# PostgreSQL DataLoader - Python Dependencies
+
+# Database adapter for PostgreSQL
+psycopg2-binary>=2.9.0
+
+# Data manipulation and analysis
+pandas>=1.3.0
+
+# Environment variable management
+python-dotenv>=0.19.0
+
+# Optional: For anonymization features (uncomment if needed)
+# pycryptodome>=3.15.0
