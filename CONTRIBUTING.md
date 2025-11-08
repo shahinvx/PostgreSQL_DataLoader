@@ -59,7 +59,7 @@ Enhancement suggestions are tracked as GitHub issues. When creating an enhanceme
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/yourusername/postgresql-dataloader.git
+git clone https://github.com/shahinvx/PostgreSQL_DataLoader.git
 cd postgresql-dataloader
 ```
 
@@ -284,8 +284,8 @@ When adding new features:
 
 - **Documentation:** Check [README.md](README.md) and [docs/](docs/)
 - **Examples:** See [examples/](examples/)
-- **Issues:** Browse or create [GitHub Issues](https://github.com/yourusername/postgresql-dataloader/issues)
-- **Discussions:** Join [GitHub Discussions](https://github.com/yourusername/postgresql-dataloader/discussions)
+- **Issues:** Browse or create [GitHub Issues](https://github.com/shahinvx/PostgreSQL_DataLoader/issues)
+- **Discussions:** Join [GitHub Discussions](https://github.com/shahinvx/PostgreSQL_DataLoader/discussions)
 
 ## Recognition
 

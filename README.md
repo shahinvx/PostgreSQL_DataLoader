@@ -63,17 +63,7 @@ pip install psycopg2-binary pandas python-dotenv
 
 ### 1. Configure Database Connection
 
-Edit the connection details in `src/postgresql_dataloader.py`:
-
-```python
-DB_HOST = "localhost"
-DB_PORT = "5432"
-DB_NAME = "your_database"
-DB_USER = "your_username"
-DB_PASSWORD = "your_password"
-```
-
-Or use environment variables (recommended for security):
+Use environment variables (recommended for security):
 
 ```bash
 # Create .env file
@@ -84,42 +74,65 @@ DB_USER=your_username
 DB_PASSWORD=your_password
 ```
 
-### 2. Load CSV Data into PostgreSQL
+### 2. Load CSV Data into PostgreSQL (Class-Based Approach)
 
 ```python
 import pandas as pd
-from src.postgresql_dataloader import (
-    create_table_from_dataframe,
-    insert_dataframe_to_table
+from src.postgresql_dataloader import PostgreSQLDataLoader
+
+# Initialize loader (reads from .env automatically)
+loader = PostgreSQLDataLoader()
+
+# Or specify connection directly
+loader = PostgreSQLDataLoader(
+    host="localhost",
+    database="mydb",
+    user="postgres",
+    password="secret"
 )
 
 # Read CSV file
 df = pd.read_csv('data/sample_customer_demographics.csv')
 
-# Create table from DataFrame schema
-create_table_from_dataframe(df, "customers")
-
-# Insert data
-insert_dataframe_to_table(df, "customers")
+# Create table and insert data
+with loader:  # Context manager handles connection
+    loader.create_table_from_dataframe(df, "customers", primary_key="Customer ID")
+    loader.insert_dataframe(df, "customers")
 ```
 
 ### 3. Explore Your Database
 
 ```python
+from src.postgresql_dataloader import PostgreSQLDataLoader
+
+with PostgreSQLDataLoader() as loader:
+    # List all tables
+    tables = loader.get_all_tables()
+    print(f"Found {len(tables)} tables: {tables}")
+
+    # Get table info
+    info = loader.get_table_info("customers")
+    print(f"Columns: {[col['name'] for col in info['columns']]}")
+
+    # Load data into DataFrame
+    df = loader.table_to_dataframe("customers", limit=10)
+    print(df.head())
+```
+
+### Alternative: Function-Based Approach (Legacy)
+
+```python
+# Backward compatible - works with existing code
 from src.postgresql_dataloader import (
-    print_all_table_names,
-    print_table_columns,
-    select_top_n_rows
+    create_table_from_dataframe,
+    insert_dataframe_to_table,
+    print_all_table_names
 )
 
-# List all tables
+df = pd.read_csv('data/sample_customer_demographics.csv')
+create_table_from_dataframe(df, "customers")
+insert_dataframe_to_table(df, "customers")
 print_all_table_names()
-
-# View table structure
-print_table_columns("customers")
-
-# Preview data
-select_top_n_rows("customers", limit=10)
 ```
 
 ## Usage Examples
@@ -128,7 +141,7 @@ select_top_n_rows("customers", limit=10)
 
 ```python
 import pandas as pd
-from src.postgresql_dataloader import *
+from src.postgresql_dataloader import PostgreSQLDataLoader
 
 # Load CSV
 df = pd.read_csv('data/sample_customer_transactions.csv')
@@ -139,19 +152,19 @@ df['DEPOSIT'] = df['DEPOSIT'].str.replace(',', '').astype(float)
 df['BALANCE'] = df['BALANCE'].str.replace(',', '').astype(float)
 
 # Create and populate table
-create_table_from_dataframe(df, "transactions", primary_key="Customer ID")
-rows_inserted = insert_dataframe_to_dataframe(df, "transactions")
-
-print(f"Successfully inserted {rows_inserted} rows!")
+with PostgreSQLDataLoader() as loader:
+    loader.create_table_from_dataframe(df, "transactions", primary_key="Customer ID")
+    rows_inserted = loader.insert_dataframe(df, "transactions")
+    print(f"Successfully inserted {rows_inserted} rows!")
 ```
 
 ### Example 2: Connect to Custom Database
 
 ```python
-from src.postgresql_dataloader import get_connection
+from src.postgresql_dataloader import PostgreSQLDataLoader
 
-# Connect to specific database
-conn = get_connection(
+# Initialize with custom database credentials
+loader = PostgreSQLDataLoader(
     host="my-server.com",
     port="5432",
     database="production_db",
@@ -159,9 +172,10 @@ conn = get_connection(
     password="secure_password"
 )
 
-if conn:
-    print("Connected successfully!")
-    conn.close()
+# Use context manager for automatic connection handling
+with loader:
+    tables = loader.get_all_tables()
+    print(f"Connected successfully! Found {len(tables)} tables.")
 ```
 
 ### Example 3: Data Type Mapping
@@ -178,7 +192,7 @@ The module automatically maps pandas data types to PostgreSQL:
 
 ```python
 import pandas as pd
-from src.postgresql_dataloader import create_table_from_dataframe
+from src.postgresql_dataloader import PostgreSQLDataLoader
 
 df = pd.DataFrame({
     'id': [1, 2, 3],                    # → INTEGER
@@ -188,98 +202,135 @@ df = pd.DataFrame({
     'is_active': [True, True, False]    # → BOOLEAN
 })
 
-create_table_from_dataframe(df, "employees", primary_key="id")
+with PostgreSQLDataLoader() as loader:
+    loader.create_table_from_dataframe(df, "employees", primary_key="id")
+    loader.insert_dataframe(df, "employees")
 ```
 
 ### Example 4: Table Management
 
 ```python
-from src.postgresql_dataloader import (
-    clear_table_data,
-    drop_table
-)
+from src.postgresql_dataloader import PostgreSQLDataLoader
 
-# Remove all data but keep table structure
-clear_table_data("old_transactions")
+with PostgreSQLDataLoader() as loader:
+    # Remove all data but keep table structure
+    loader.truncate_table("old_transactions")
 
-# Drop table completely
-drop_table("obsolete_table", cascade=True)
+    # Drop table completely
+    loader.drop_table("obsolete_table", cascade=True)
+
+    # Check if table exists
+    if loader.table_exists("customers"):
+        print("Table exists!")
 ```
 
 ## API Reference
 
-### Connection Management
+### PostgreSQLDataLoader Class (Recommended)
 
-#### `get_connection(host=None, port=None, database=None, user=None, password=None)`
-Creates a PostgreSQL connection.
+#### `PostgreSQLDataLoader(host=None, port=None, database=None, user=None, password=None)`
+Main class for PostgreSQL database operations with pandas integration.
 
-**Returns:** Connection object or None
+**Parameters:**
+- `host` (str, optional): Database host (default: from .env or 'localhost')
+- `port` (str, optional): Database port (default: from .env or '5432')
+- `database` (str, optional): Database name (default: from .env)
+- `user` (str, optional): Database user (default: from .env)
+- `password` (str, optional): Database password (default: from .env)
 
-### Table Operations
+**Methods:**
 
-#### `create_table_from_dataframe(df, table_name, primary_key=None, **connection_params)`
+#### `create_table_from_dataframe(df, table_name, primary_key=None, if_exists='skip')`
 Creates a table based on DataFrame schema.
 
 **Parameters:**
 - `df` (DataFrame): Source DataFrame
 - `table_name` (str): Name of table to create
 - `primary_key` (str, optional): Column to set as primary key
-- `**connection_params`: Optional host, port, database, user, password
+- `if_exists` (str): Action if table exists: 'skip', 'replace', 'fail'
 
 **Returns:** Boolean (True if successful)
 
-#### `insert_dataframe_to_table(df, table_name)`
+#### `insert_dataframe(df, table_name, batch_size=1000)`
 Inserts DataFrame rows into existing table.
 
 **Parameters:**
 - `df` (DataFrame): Data to insert
 - `table_name` (str): Target table name
+- `batch_size` (int): Number of rows per batch
 
 **Returns:** Number of rows inserted or None
 
-#### `drop_table(table_name, cascade=False, **connection_params)`
+#### `drop_table(table_name, cascade=False)`
 Drops a table from the database.
 
 **Parameters:**
 - `table_name` (str): Table to drop
 - `cascade` (bool): If True, drops dependent objects
-- `**connection_params`: Optional connection parameters
 
 **Returns:** Boolean (True if successful)
 
-#### `clear_table_data(table_name)`
+#### `truncate_table(table_name)`
 Truncates table (removes all rows, resets sequences).
 
 **Parameters:**
 - `table_name` (str): Table to truncate
 
-### Exploration Functions
+**Returns:** Boolean (True if successful)
 
-#### `print_all_table_names()`
+#### `get_all_tables()`
 Lists all tables in the database.
 
-#### `print_table_columns(table_name)`
-Displays column details for a table.
+**Returns:** List of table names
+
+#### `get_table_info(table_name)`
+Get detailed table metadata including columns and types.
 
 **Parameters:**
 - `table_name` (str): Table to inspect
 
-#### `get_table_column_names(table_name)`
-Returns list of column names.
+**Returns:** Dictionary with table information
+
+#### `table_to_dataframe(table_name, limit=None)`
+Load table data into a pandas DataFrame.
+
+**Parameters:**
+- `table_name` (str): Table to query
+- `limit` (int, optional): Number of rows to retrieve
+
+**Returns:** DataFrame or None
+
+#### `query_to_dataframe(query, params=None)`
+Execute custom SQL query and return DataFrame.
+
+**Parameters:**
+- `query` (str): SQL query to execute
+- `params` (tuple, optional): Query parameters
+
+**Returns:** DataFrame or None
+
+#### `table_exists(table_name)`
+Check if a table exists in the database.
 
 **Parameters:**
 - `table_name` (str): Table name
 
-**Returns:** List of column names
+**Returns:** Boolean
 
-#### `select_top_n_rows(table_name, limit=5)`
-Queries and displays top N rows.
+### Legacy Function-Based API (Backward Compatible)
 
-**Parameters:**
-- `table_name` (str): Table to query
-- `limit` (int): Number of rows to retrieve
+The module also provides standalone functions for backward compatibility:
+- `get_connection()` - Create database connection
+- `create_table_from_dataframe()` - Create table from DataFrame
+- `insert_dataframe_to_table()` - Insert DataFrame data
+- `drop_table()` - Drop table
+- `clear_table_data()` - Truncate table
+- `print_all_table_names()` - List tables
+- `print_table_columns()` - Show column details
+- `get_table_column_names()` - Get column names
+- `select_top_n_rows()` - Query rows
 
-**Returns:** List of tuples containing row data
+See [API_DOCUMENTATION.md](docs/API_DOCUMENTATION.md) for complete function signatures.
 
 ## Configuration
 
@@ -384,7 +435,7 @@ Contributions are welcome! Here's how you can help:
 
 ```bash
 # Clone repository
-git clone https://github.com/yourusername/postgresql-dataloader.git
+git clone https://github.com/shahinvx/PostgreSQL_DataLoader.git
 
 # Install dependencies
 pip install -r requirements.txt

@@ -15,14 +15,7 @@ import os
 # Add parent directory to path to import the module
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from src.postgresql_dataloader import (
-    create_table_from_dataframe,
-    insert_dataframe_to_table,
-    print_all_table_names,
-    print_table_columns,
-    select_top_n_rows,
-    get_table_column_names
-)
+from src.postgresql_dataloader import PostgreSQLDataLoader
 
 
 def clean_numeric_column(series):
@@ -69,19 +62,20 @@ def example_1_load_customer_demographics():
     if column_mapping:
         df.rename(columns=column_mapping, inplace=True)
 
-    # Create table
-    print("\nCreating table 'demo_customers'...")
-    success = create_table_from_dataframe(df, "demo_customers")
+    # Create table and insert data using class-based approach
+    print("\nCreating table 'demo_customers' and inserting data...")
+    with PostgreSQLDataLoader() as loader:
+        success = loader.create_table_from_dataframe(df, "demo_customers")
 
-    if success:
-        # Insert data
-        print("\nInserting data...")
-        rows = insert_dataframe_to_table(df, "demo_customers")
-        print(f"\nSuccessfully inserted {rows} rows!")
+        if success:
+            # Insert data
+            rows = loader.insert_dataframe(df, "demo_customers")
+            print(f"\nSuccessfully inserted {rows} rows!")
 
-        # Verify
-        print("\nVerifying data...")
-        select_top_n_rows("demo_customers", limit=3)
+            # Verify
+            print("\nVerifying data...")
+            result_df = loader.table_to_dataframe("demo_customers", limit=3)
+            print(result_df)
 
 
 def example_2_load_transactions():
@@ -103,19 +97,20 @@ def example_2_load_transactions():
         if col in df.columns:
             df[col] = clean_numeric_column(df[col])
 
-    # Create table
-    print("\nCreating table 'demo_transactions'...")
-    success = create_table_from_dataframe(df, "demo_transactions")
+    # Create table and insert data using class-based approach
+    print("\nCreating table 'demo_transactions' and inserting data...")
+    with PostgreSQLDataLoader() as loader:
+        success = loader.create_table_from_dataframe(df, "demo_transactions")
 
-    if success:
-        # Insert data
-        print("\nInserting data...")
-        rows = insert_dataframe_to_table(df, "demo_transactions")
-        print(f"\nSuccessfully inserted {rows} rows!")
+        if success:
+            # Insert data
+            rows = loader.insert_dataframe(df, "demo_transactions")
+            print(f"\nSuccessfully inserted {rows} rows!")
 
-        # Verify
-        print("\nVerifying data...")
-        select_top_n_rows("demo_transactions", limit=5)
+            # Verify
+            print("\nVerifying data...")
+            result_df = loader.table_to_dataframe("demo_transactions", limit=5)
+            print(result_df)
 
 
 def example_3_explore_database():
@@ -126,18 +121,25 @@ def example_3_explore_database():
     print("EXAMPLE 3: Exploring Database")
     print("="*80)
 
-    # List all tables
-    print("\n--- All Tables ---")
-    print_all_table_names()
+    with PostgreSQLDataLoader() as loader:
+        # List all tables
+        print("\n--- All Tables ---")
+        tables = loader.get_all_tables()
+        print(f"Found {len(tables)} tables: {tables}")
 
-    # Inspect table structure
-    print("\n--- Customer Table Structure ---")
-    print_table_columns("demo_customers")
+        # Inspect table structure
+        print("\n--- Customer Table Structure ---")
+        table_info = loader.get_table_info("demo_customers")
+        if table_info:
+            print(f"Table: {table_info['name']}")
+            print(f"Columns: {[col['name'] for col in table_info['columns']]}")
 
-    # Get column names
-    print("\n--- Transaction Columns ---")
-    columns = get_table_column_names("demo_transactions")
-    print(f"Columns: {columns}")
+        # Get column names from transactions
+        print("\n--- Transaction Columns ---")
+        trans_info = loader.get_table_info("demo_transactions")
+        if trans_info:
+            columns = [col['name'] for col in trans_info['columns']]
+            print(f"Columns: {columns}")
 
 
 def main():

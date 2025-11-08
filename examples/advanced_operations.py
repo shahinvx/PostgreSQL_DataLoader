@@ -15,15 +15,7 @@ import os
 # Add parent directory to path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from src.postgresql_dataloader import (
-    get_connection,
-    create_table_from_dataframe,
-    insert_dataframe_to_table,
-    drop_table,
-    clear_table_data,
-    print_table_columns,
-    select_top_n_rows
-)
+from src.postgresql_dataloader import PostgreSQLDataLoader
 
 
 def example_1_custom_connection():
@@ -34,27 +26,27 @@ def example_1_custom_connection():
     print("EXAMPLE 1: Custom Database Connection")
     print("="*80)
 
-    # Option 1: Use default connection
+    # Option 1: Use default connection (from .env)
     print("\n--- Default Connection ---")
-    conn = get_connection()
-    if conn:
-        print("Connected to default database successfully!")
-        conn.close()
+    with PostgreSQLDataLoader() as loader:
+        tables = loader.get_all_tables()
+        print(f"Connected to default database successfully! Found {len(tables)} tables.")
 
     # Option 2: Custom connection parameters
     print("\n--- Custom Connection ---")
-    conn = get_connection(
-        host="localhost",
-        port="5432",
-        database="test_db",  # Change to your database
-        user="postgres",
-        password="your_password"
-    )
-    if conn:
-        print("Connected to custom database successfully!")
-        conn.close()
-    else:
-        print("Connection failed - check your credentials")
+    try:
+        loader = PostgreSQLDataLoader(
+            host="localhost",
+            port="5432",
+            database="test_db",  # Change to your database
+            user="postgres",
+            password="your_password"
+        )
+        with loader:
+            tables = loader.get_all_tables()
+            print(f"Connected to custom database successfully! Found {len(tables)} tables.")
+    except Exception as e:
+        print(f"Connection failed - check your credentials: {e}")
 
 
 def example_2_table_management():
@@ -72,27 +64,30 @@ def example_2_table_management():
         'value': [10.5, 20.7, 30.2, 40.9, 50.1]
     })
 
-    print("\n--- Creating test table ---")
-    create_table_from_dataframe(df, "test_table", primary_key="id")
+    with PostgreSQLDataLoader() as loader:
+        print("\n--- Creating test table ---")
+        loader.create_table_from_dataframe(df, "test_table", primary_key="id")
 
-    # Insert data
-    print("\n--- Inserting data ---")
-    insert_dataframe_to_table(df, "test_table")
+        # Insert data
+        print("\n--- Inserting data ---")
+        loader.insert_dataframe(df, "test_table")
 
-    # View data
-    print("\n--- Viewing data ---")
-    select_top_n_rows("test_table", limit=5)
+        # View data
+        print("\n--- Viewing data ---")
+        result_df = loader.table_to_dataframe("test_table", limit=5)
+        print(result_df)
 
-    # Clear table data
-    print("\n--- Clearing table data ---")
-    clear_table_data("test_table")
+        # Clear table data
+        print("\n--- Clearing table data ---")
+        loader.truncate_table("test_table")
 
-    print("\n--- Checking if table is empty ---")
-    select_top_n_rows("test_table", limit=5)
+        print("\n--- Checking if table is empty ---")
+        result_df = loader.table_to_dataframe("test_table", limit=5)
+        print(f"Table rows: {len(result_df) if result_df is not None else 0}")
 
-    # Drop table
-    print("\n--- Dropping table ---")
-    drop_table("test_table")
+        # Drop table
+        print("\n--- Dropping table ---")
+        loader.drop_table("test_table")
 
 
 def example_3_data_validation():
@@ -116,18 +111,22 @@ def example_3_data_validation():
     print("\nDataFrame Info:")
     print(df.dtypes)
 
-    print("\n--- Creating table with type mapping ---")
-    create_table_from_dataframe(df, "validated_employees", primary_key="id")
+    with PostgreSQLDataLoader() as loader:
+        print("\n--- Creating table with type mapping ---")
+        loader.create_table_from_dataframe(df, "validated_employees", primary_key="id")
 
-    print("\n--- Table structure ---")
-    print_table_columns("validated_employees")
+        print("\n--- Table structure ---")
+        table_info = loader.get_table_info("validated_employees")
+        if table_info:
+            for col in table_info['columns']:
+                print(f"  {col['name']}: {col['type']}")
 
-    print("\n--- Inserting validated data ---")
-    rows = insert_dataframe_to_table(df, "validated_employees")
-    print(f"Inserted {rows} rows")
+        print("\n--- Inserting validated data ---")
+        rows = loader.insert_dataframe(df, "validated_employees")
+        print(f"Inserted {rows} rows")
 
-    # Cleanup
-    drop_table("validated_employees")
+        # Cleanup
+        loader.drop_table("validated_employees")
 
 
 def example_4_batch_operations():
@@ -151,18 +150,20 @@ def example_4_batch_operations():
 
     print(f"\nGenerated {len(df)} rows of sample data")
 
-    print("\n--- Creating table for batch insert ---")
-    create_table_from_dataframe(df, "batch_data", primary_key="id")
+    with PostgreSQLDataLoader() as loader:
+        print("\n--- Creating table for batch insert ---")
+        loader.create_table_from_dataframe(df, "batch_data", primary_key="id")
 
-    print("\n--- Performing batch insert (page_size=1000) ---")
-    rows = insert_dataframe_to_table(df, "batch_data")
-    print(f"Successfully inserted {rows} rows in batch")
+        print("\n--- Performing batch insert (batch_size=1000) ---")
+        rows = loader.insert_dataframe(df, "batch_data", batch_size=1000)
+        print(f"Successfully inserted {rows} rows in batch")
 
-    print("\n--- Viewing sample ---")
-    select_top_n_rows("batch_data", limit=10)
+        print("\n--- Viewing sample ---")
+        result_df = loader.table_to_dataframe("batch_data", limit=10)
+        print(result_df)
 
-    # Cleanup
-    drop_table("batch_data")
+        # Cleanup
+        loader.drop_table("batch_data")
 
 
 def example_5_error_handling():
@@ -173,20 +174,26 @@ def example_5_error_handling():
     print("EXAMPLE 5: Error Handling")
     print("="*80)
 
-    # Try to insert data into non-existent table
-    print("\n--- Attempting to insert into non-existent table ---")
-    df = pd.DataFrame({'id': [1, 2], 'name': ['A', 'B']})
-    result = insert_dataframe_to_table(df, "non_existent_table")
+    with PostgreSQLDataLoader() as loader:
+        # Try to insert data into non-existent table
+        print("\n--- Attempting to insert into non-existent table ---")
+        df = pd.DataFrame({'id': [1, 2], 'name': ['A', 'B']})
+        result = loader.insert_dataframe(df, "non_existent_table")
 
-    if result is None:
-        print("Operation failed as expected (table doesn't exist)")
+        if result is None:
+            print("Operation failed as expected (table doesn't exist)")
 
-    # Try to drop non-existent table
-    print("\n--- Attempting to drop non-existent table ---")
-    result = drop_table("non_existent_table_xyz")
+        # Check if table exists
+        print("\n--- Checking if table exists ---")
+        exists = loader.table_exists("non_existent_table")
+        print(f"Table exists: {exists}")
 
-    if not result:
-        print("Drop operation completed (table didn't exist anyway)")
+        # Try to drop non-existent table
+        print("\n--- Attempting to drop non-existent table ---")
+        result = loader.drop_table("non_existent_table_xyz")
+
+        if not result:
+            print("Drop operation completed (table didn't exist anyway)")
 
 
 def main():

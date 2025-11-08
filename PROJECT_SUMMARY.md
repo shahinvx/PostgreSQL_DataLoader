@@ -194,7 +194,7 @@ data-science
 
 ```bash
 # Clone repository
-git clone https://github.com/yourusername/postgresql-dataloader.git
+git clone https://github.com/shahinvx/PostgreSQL_DataLoader.git
 cd postgresql-dataloader
 
 # Install dependencies
@@ -303,7 +303,7 @@ Project will be considered successful when:
 ## Contact
 
 **Project Maintainer**: [Your Name]
-**GitHub**: [@yourusername](https://github.com/yourusername)
+**GitHub**: [@shahinvx](https://github.com/yourusername)
 **Email**: your.email@example.com
 
 ---

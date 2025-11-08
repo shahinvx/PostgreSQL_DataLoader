@@ -30,8 +30,8 @@ Complete step-by-step guide to get PostgreSQL DataLoader running on your system.
 
 #### Option A: Clone with Git
 ```bash
-git clone https://github.com/yourusername/postgresql-dataloader.git
-cd postgresql-dataloader
+git clone https://github.com/shahinvx/PostgreSQL_DataLoader.git
+cd PostgreSQL_DataLoader
 ```
 
 #### Option B: Download ZIP
@@ -213,42 +213,60 @@ If everything is set up correctly, you should see tables being created and data 
 
 ## Quick Start Usage
 
-### Example 1: Load Sample Data
+### Example 1: Load Sample Data (Class-Based Approach)
 
 ```python
 import pandas as pd
-from src.postgresql_dataloader import (
-    create_table_from_dataframe,
-    insert_dataframe_to_table
-)
+from src.postgresql_dataloader import PostgreSQLDataLoader
 
 # Read sample CSV
 df = pd.read_csv('data/sample_customer_demographics.csv')
 
-# Create table
-create_table_from_dataframe(df, "customers")
+# Use context manager for automatic connection handling
+with PostgreSQLDataLoader() as loader:
+    # Create table
+    loader.create_table_from_dataframe(df, "customers", primary_key="Customer ID")
 
-# Insert data
-insert_dataframe_to_table(df, "customers")
+    # Insert data
+    rows = loader.insert_dataframe(df, "customers")
+    print(f"Inserted {rows} rows")
 ```
 
 ### Example 2: Explore Database
 
 ```python
+from src.postgresql_dataloader import PostgreSQLDataLoader
+
+with PostgreSQLDataLoader() as loader:
+    # List all tables
+    tables = loader.get_all_tables()
+    print(f"Found {len(tables)} tables: {tables}")
+
+    # Get table info
+    info = loader.get_table_info("customers")
+    if info:
+        print(f"Columns: {[col['name'] for col in info['columns']]}")
+
+    # Load data into DataFrame
+    df = loader.table_to_dataframe("customers", limit=5)
+    print(df.head())
+```
+
+### Example 3: Legacy Function-Based Approach
+
+For backward compatibility, you can still use the function-based API:
+
+```python
 from src.postgresql_dataloader import (
-    print_all_table_names,
-    print_table_columns,
-    select_top_n_rows
+    create_table_from_dataframe,
+    insert_dataframe_to_table,
+    print_all_table_names
 )
 
-# List tables
+df = pd.read_csv('data/sample_customer_demographics.csv')
+create_table_from_dataframe(df, "customers")
+insert_dataframe_to_table(df, "customers")
 print_all_table_names()
-
-# View table structure
-print_table_columns("customers")
-
-# Preview data
-select_top_n_rows("customers", limit=5)
 ```
 
 ## Troubleshooting
@@ -383,8 +401,8 @@ conn = psycopg2.connect(conn_string)
 
 - **Documentation**: Check [README.md](README.md) and [docs/](docs/)
 - **Examples**: See [examples/](examples/)
-- **Issues**: [GitHub Issues](https://github.com/yourusername/postgresql-dataloader/issues)
-- **Community**: [GitHub Discussions](https://github.com/yourusername/postgresql-dataloader/discussions)
+- **Issues**: [GitHub Issues](https://github.com/shahinvx/PostgreSQL_DataLoader/issues)
+- **Community**: [GitHub Discussions](https://github.com/shahinvx/PostgreSQL_DataLoader/discussions)
 
 ## Security Best Practices
 
